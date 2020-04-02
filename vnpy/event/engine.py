@@ -6,7 +6,7 @@ from collections import defaultdict
 from queue import Empty, Queue
 from threading import Thread
 from time import sleep
-from typing import Any, Callable, List
+from typing import Any, Callable
 
 EVENT_TIMER = "eTimer"
 
@@ -20,8 +20,8 @@ class Event:
 
     def __init__(self, type: str, data: Any = None):
         """"""
-        self.type: str = type
-        self.data: Any = data
+        self.type = type
+        self.data = data
 
 
 # Defines handler function to be used in event engine.
@@ -42,15 +42,15 @@ class EventEngine:
         Timer event is generated every 1 second by default, if
         interval not specified.
         """
-        self._interval: int = interval
-        self._queue: Queue = Queue()
-        self._active: bool = False
-        self._thread: Thread = Thread(target=self._run)
-        self._timer: Thread = Thread(target=self._run_timer)
-        self._handlers: defaultdict = defaultdict(list)
-        self._general_handlers: List = []
+        self._interval = interval
+        self._queue = Queue()
+        self._active = False
+        self._thread = Thread(target=self._run)
+        self._timer = Thread(target=self._run_timer)
+        self._handlers = defaultdict(list)
+        self._general_handlers = []
 
-    def _run(self) -> None:
+    def _run(self):
         """
         Get event from queue and then process it.
         """
@@ -61,7 +61,7 @@ class EventEngine:
             except Empty:
                 pass
 
-    def _process(self, event: Event) -> None:
+    def _process(self, event: Event):
         """
         First ditribute event to those handlers registered listening
         to this type.
@@ -75,7 +75,7 @@ class EventEngine:
         if self._general_handlers:
             [handler(event) for handler in self._general_handlers]
 
-    def _run_timer(self) -> None:
+    def _run_timer(self):
         """
         Sleep by interval second(s) and then generate a timer event.
         """
@@ -84,7 +84,7 @@ class EventEngine:
             event = Event(EVENT_TIMER)
             self.put(event)
 
-    def start(self) -> None:
+    def start(self):
         """
         Start event engine to process events and generate timer events.
         """
@@ -92,7 +92,7 @@ class EventEngine:
         self._thread.start()
         self._timer.start()
 
-    def stop(self) -> None:
+    def stop(self):
         """
         Stop event engine.
         """
@@ -100,13 +100,13 @@ class EventEngine:
         self._timer.join()
         self._thread.join()
 
-    def put(self, event: Event) -> None:
+    def put(self, event: Event):
         """
         Put an event object into event queue.
         """
         self._queue.put(event)
 
-    def register(self, type: str, handler: HandlerType) -> None:
+    def register(self, type: str, handler: HandlerType):
         """
         Register a new handler function for a specific event type. Every
         function can only be registered once for each event type.
@@ -115,7 +115,7 @@ class EventEngine:
         if handler not in handler_list:
             handler_list.append(handler)
 
-    def unregister(self, type: str, handler: HandlerType) -> None:
+    def unregister(self, type: str, handler: HandlerType):
         """
         Unregister an existing handler function from event engine.
         """
@@ -127,7 +127,7 @@ class EventEngine:
         if not handler_list:
             self._handlers.pop(type)
 
-    def register_general(self, handler: HandlerType) -> None:
+    def register_general(self, handler: HandlerType):
         """
         Register a new handler function for all event types. Every
         function can only be registered once for each event type.
@@ -135,7 +135,7 @@ class EventEngine:
         if handler not in self._general_handlers:
             self._general_handlers.append(handler)
 
-    def unregister_general(self, handler: HandlerType) -> None:
+    def unregister_general(self, handler: HandlerType):
         """
         Unregister an existing general handler function.
         """

@@ -304,14 +304,13 @@ class TargetPosTemplate(CtaTemplate):
     last_tick = None
     last_bar = None
     target_pos = 0
+    vt_orderids = []
 
     def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
         """"""
-        super().__init__(cta_engine, strategy_name, vt_symbol, setting)
-
-        self.active_orderids = []
-        self.cancel_orderids = []
-
+        super(TargetPosTemplate, self).__init__(
+            cta_engine, strategy_name, vt_symbol, setting
+        )
         self.variables.append("target_pos")
 
     @virtual
@@ -338,19 +337,8 @@ class TargetPosTemplate(CtaTemplate):
         """
         vt_orderid = order.vt_orderid
 
-        if not order.is_active():
-            if vt_orderid in self.active_orderids:
-                self.active_orderids.remove(vt_orderid)
-
-            if vt_orderid in self.cancel_orderids:
-                self.cancel_orderids.remove(vt_orderid)
-
-    def check_order_finished(self):
-        """"""
-        if self.active_orderids:
-            return False
-        else:
-            return True
+        if not order.is_active() and vt_orderid in self.vt_orderids:
+            self.vt_orderids.remove(vt_orderid)
 
     def set_target_pos(self, target_pos):
         """"""
@@ -359,20 +347,8 @@ class TargetPosTemplate(CtaTemplate):
 
     def trade(self):
         """"""
-        if not self.check_order_finished():
-            self.cancel_old_order()
-        else:
-            self.send_new_order()
+        self.cancel_all()
 
-    def cancel_old_order(self):
-        """"""
-        for vt_orderid in self.active_orderids:
-            if vt_orderid not in self.cancel_orderids:
-                self.cancel_order(vt_orderid)
-                self.cancel_orderids.append(vt_orderid)
-
-    def send_new_order(self):
-        """"""
         pos_change = self.target_pos - self.pos
         if not pos_change:
             return
@@ -401,10 +377,10 @@ class TargetPosTemplate(CtaTemplate):
                 vt_orderids = self.buy(long_price, abs(pos_change))
             else:
                 vt_orderids = self.short(short_price, abs(pos_change))
-            self.active_orderids.extend(vt_orderids)
+            self.vt_orderids.extend(vt_orderids)
 
         else:
-            if self.active_orderids:
+            if self.vt_orderids:
                 return
 
             if pos_change > 0:
@@ -423,4 +399,4 @@ class TargetPosTemplate(CtaTemplate):
                         vt_orderids = self.sell(short_price, abs(self.pos))
                 else:
                     vt_orderids = self.short(short_price, abs(pos_change))
-            self.active_orderids.extend(vt_orderids)
+            self.vt_orderids.extend(vt_orderids)

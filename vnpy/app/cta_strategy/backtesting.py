@@ -6,7 +6,6 @@ from functools import lru_cache
 from time import time
 import multiprocessing
 import random
-import traceback
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,10 +29,7 @@ from .base import (
 )
 from .template import CtaTemplate
 
-# Set seaborn style
 sns.set_style("whitegrid")
-
-# Set deap algo
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
@@ -283,13 +279,7 @@ class BacktestingEngine:
                     break
 
             self.datetime = data.datetime
-
-            try:
-                self.callback(data)
-            except Exception:
-                self.output("触发异常，回测终止")
-                self.output(traceback.format_exc())
-                return
+            self.callback(data)
 
         self.strategy.inited = True
         self.output("策略初始化完成")
@@ -300,12 +290,7 @@ class BacktestingEngine:
 
         # Use the rest of history data for running backtesting
         for data in self.history_data[ix:]:
-            try:
-                func(data)
-            except Exception:
-                self.output("触发异常，回测终止")
-                self.output(traceback.format_exc())
-                return
+            func(data)
 
         self.output("历史数据回放结束")
 
@@ -411,12 +396,8 @@ class BacktestingEngine:
             max_drawdown = df["drawdown"].min()
             max_ddpercent = df["ddpercent"].min()
             max_drawdown_end = df["drawdown"].idxmin()
-
-            if isinstance(max_drawdown_end, date):
-                max_drawdown_start = df["balance"][:max_drawdown_end].idxmax()
-                max_drawdown_duration = (max_drawdown_end - max_drawdown_start).days
-            else:
-                max_drawdown_duration = 0
+            max_drawdown_start = df["balance"][:max_drawdown_end].argmax()
+            max_drawdown_duration = (max_drawdown_end - max_drawdown_start).days
 
             total_net_pnl = df["net_pnl"].sum()
             daily_net_pnl = total_net_pnl / total_days
@@ -510,13 +491,6 @@ class BacktestingEngine:
             "return_drawdown_ratio": return_drawdown_ratio,
         }
 
-        # Filter potential error infinite value
-        for key, value in statistics.items():
-            if value in (np.inf, -np.inf):
-                value = 0
-            statistics[key] = np.nan_to_num(value)
-
-        self.output("策略统计指标计算完成")
         return statistics
 
     def show_chart(self, df: DataFrame = None):
@@ -564,9 +538,7 @@ class BacktestingEngine:
             return
 
         # Use multiprocessing pool for running backtesting with different setting
-        # Force to use spawn method to create new process (instead of fork on Linux)
-        ctx = multiprocessing.get_context("spawn")
-        pool = ctx.Pool(multiprocessing.cpu_count())
+        pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
         results = []
         for setting in settings:
