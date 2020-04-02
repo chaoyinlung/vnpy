@@ -3,7 +3,6 @@
 
 import sys
 from datetime import datetime
-from time import sleep
 
 from vnpy.api.ctp import (
     MdApi,
@@ -506,14 +505,8 @@ class CtpTdApi(TdApi):
         """
         self.gateway.write_log("结算信息确认成功")
 
-        while True:
-            self.reqid += 1
-            n = self.reqQryInstrument({}, self.reqid)
-
-            if not n:
-                break
-            else:
-                sleep(1)
+        self.reqid += 1
+        self.reqQryInstrument({}, self.reqid)
 
     def onRspQryInvestorPosition(self, data: dict, error: dict, reqid: int, last: bool):
         """"""

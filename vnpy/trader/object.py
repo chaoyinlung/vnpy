@@ -124,7 +124,7 @@ class OrderData(BaseData):
         self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
         self.vt_orderid = f"{self.gateway_name}.{self.orderid}"
 
-    def is_active(self) -> bool:
+    def is_active(self):
         """
         Check if the order is active.
         """
@@ -133,7 +133,7 @@ class OrderData(BaseData):
         else:
             return False
 
-    def create_cancel_request(self) -> "CancelRequest":
+    def create_cancel_request(self):
         """
         Create cancel request object from order.
         """
@@ -284,7 +284,7 @@ class OrderRequest:
         """"""
         self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
 
-    def create_order_data(self, orderid: str, gateway_name: str) -> OrderData:
+    def create_order_data(self, orderid: str, gateway_name: str):
         """
         Create order data from request.
         """

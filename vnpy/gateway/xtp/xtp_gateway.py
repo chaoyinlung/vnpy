@@ -1,124 +1,121 @@
-from typing import Any, Dict, List
+from typing import Any, Sequence
 from datetime import datetime
+from threading import Thread
 
-from vnpy.api.xtp import MdApi, TdApi
+from vnpy.api.xtp.vnxtp import (
+    XTP,
+    set_async_callback_exception_handler,
+    AsyncDispatchException,
+    OrderBookStruct,
+    XTPMarketDataStruct,
+    XTPQuoteStaticInfo,
+    XTPRspInfoStruct,
+    XTPSpecificTickerStruct,
+    XTPTickByTickStruct,
+    XTPTickerPriceInfo,
+    XTPOrderInsertInfo,
+    XTPOrderInfo,
+    XTPTradeReport,
+    XTPOrderCancelInfo,
+    XTPCrdDebtInfo,
+    XTPQueryStkPositionRsp,
+    XTPQueryAssetRsp,
+    XTPStructuredFundInfo,
+    XTPFundTransferNotice,
+    XTPQueryETFBaseRsp,
+    XTPQueryETFComponentRsp,
+    XTPQueryIPOTickerRsp,
+    XTPQueryIPOQuotaRsp,
+    XTPQueryOptionAuctionInfoRsp,
+    XTP_EXCHANGE_TYPE,
+    XTP_LOG_LEVEL,
+    XTP_PROTOCOL_TYPE,
+    XTP_TE_RESUME_TYPE,
+    XTP_SIDE_BUY,
+    XTP_SIDE_SELL,
+    XTP_SIDE_MARGIN_TRADE,
+    XTP_SIDE_SHORT_SELL,
+    XTP_SIDE_REPAY_MARGIN,
+    XTP_SIDE_REPAY_STOCK,
+    XTP_ACCOUNT_TYPE,
+    XTP_BUSINESS_TYPE,
+    XTP_TICKER_TYPE,
+    XTP_MARKET_TYPE,
+    XTP_PRICE_TYPE,
+    XTP_ORDER_STATUS_TYPE
+)
 from vnpy.event import EventEngine
 from vnpy.trader.event import EVENT_TIMER
-from vnpy.trader.constant import (
-    Exchange,
-    Product,
-    Direction,
-    OrderType,
-    Status,
-    Offset
-)
+from vnpy.trader.constant import Exchange, Product, Direction, OrderType, Status, Offset
 from vnpy.trader.gateway import BaseGateway
-from vnpy.trader.object import (
-    CancelRequest,
-    OrderRequest,
-    SubscribeRequest,
-    TickData,
-    ContractData,
-    OrderData,
-    TradeData,
-    PositionData,
-    AccountData
-)
+from vnpy.trader.object import (CancelRequest, OrderRequest, SubscribeRequest,
+                                TickData, ContractData, OrderData, TradeData,
+                                PositionData, AccountData)
 from vnpy.trader.utility import get_folder_path
 
 
-MARKET_XTP2VT: Dict[int, Exchange] = {
-    1: Exchange.SZSE,
-    2: Exchange.SSE
-}
-MARKET_VT2XTP: Dict[Exchange, int] = {v: k for k, v in MARKET_XTP2VT.items()}
+API = XTP.API
 
-EXCHANGE_XTP2VT: Dict[int, Exchange] = {
-    1: Exchange.SSE,
-    2: Exchange.SZSE,
-}
-EXCHANGE_VT2XTP: Dict[Exchange, int] = {v: k for k, v in EXCHANGE_XTP2VT.items()}
 
-DIRECTION_STOCK_XTP2VT: Dict[int, Any] = {
-    1: (Direction.LONG, Offset.NONE),
-    2: (Direction.SHORT, Offset.NONE),
-    21: (Direction.LONG, Offset.OPEN),
-    22: (Direction.SHORT, Offset.OPEN),
-    24: (Direction.LONG, Offset.CLOSE),
-    23: (Direction.SHORT, Offset.CLOSE)
+EXCHANGE_XTP2VT = {
+    XTP_EXCHANGE_TYPE.XTP_EXCHANGE_SH: Exchange.SSE,
+    XTP_EXCHANGE_TYPE.XTP_EXCHANGE_SZ: Exchange.SZSE,
 }
-DIRECTION_STOCK_VT2XTP: Dict[Any, int] = {v: k for k, v in DIRECTION_STOCK_XTP2VT.items()}
+EXCHANGE_VT2XTP = {v: k for k, v in EXCHANGE_XTP2VT.items()}
 
-DIRECTION_OPTION_XTP2VT: Dict[int, Direction] = {
-    1: Direction.LONG,
-    2: Direction.SHORT
+MARKET_XTP2VT = {
+    XTP_MARKET_TYPE.XTP_MKT_SH_A: Exchange.SSE,
+    XTP_MARKET_TYPE.XTP_MKT_SZ_A: Exchange.SZSE
 }
-DIRECTION_OPTION_VT2XTP: Dict[Direction, int] = {v: k for k, v in DIRECTION_OPTION_XTP2VT.items()}
+MARKET_VT2XTP = {v: k for k, v in MARKET_XTP2VT.items()}
 
-POSITION_DIRECTION_XTP2VT = {
-    0: Direction.NET,
-    1: Direction.LONG,
-    2: Direction.SHORT,
-    3: Direction.SHORT
+PRODUCT_XTP2VT = {
+    XTP_TICKER_TYPE.XTP_TICKER_TYPE_STOCK: Product.EQUITY,
+    XTP_TICKER_TYPE.XTP_TICKER_TYPE_INDEX: Product.INDEX,
+    XTP_TICKER_TYPE.XTP_TICKER_TYPE_FUND: Product.FUND,
+    XTP_TICKER_TYPE.XTP_TICKER_TYPE_BOND: Product.BOND,
+    XTP_TICKER_TYPE.XTP_TICKER_TYPE_OPTION: Product.OPTION,
+    XTP_TICKER_TYPE.XTP_TICKER_TYPE_UNKNOWN: Product.EQUITY,
 }
 
-ORDERTYPE_XTP2VT: Dict[int, OrderType] = {
-    1: OrderType.LIMIT,
-    2: OrderType.MARKET
+# DIRECTION_VT2XTP = {
+#     Direction.LONG: XTP_SIDE_BUY,
+#     Direction.SHORT: XTP_SIDE_SELL
+# }
+DIRECTION_VT2XTP = {
+    (Direction.LONG, Offset.OPEN): XTP_SIDE_MARGIN_TRADE,
+    (Direction.SHORT, Offset.CLOSE): XTP_SIDE_REPAY_MARGIN,
+    (Direction.SHORT, Offset.OPEN): XTP_SIDE_SHORT_SELL,
+    (Direction.LONG, Offset.CLOSE): XTP_SIDE_REPAY_STOCK,
+    (Direction.SHORT, Offset.NONE): XTP_SIDE_SELL,
+    (Direction.LONG, Offset.NONE): XTP_SIDE_BUY,
 }
-ORDERTYPE_VT2XTP: Dict[OrderType, int] = {v: k for k, v in ORDERTYPE_XTP2VT.items()}
+DIRECTION_XTP2VT = {v: k for k, v in DIRECTION_VT2XTP.items()}
 
-PROTOCOL_VT2XTP: Dict[str, int] = {
-    "TCP": 1,
-    "UDP": 2
+ORDERTYPE_VT2XTP = {
+    OrderType.LIMIT: XTP_PRICE_TYPE.XTP_PRICE_LIMIT,
+    OrderType.MARKET: XTP_PRICE_TYPE.XTP_PRICE_BEST5_OR_CANCEL
 }
+ORDERTYPE_XTP2VT = {v: k for k, v in ORDERTYPE_VT2XTP.items()}
 
-STATUS_XTP2VT: Dict[int, Status] = {
-    0: Status.SUBMITTING,
-    1: Status.ALLTRADED,
-    2: Status.PARTTRADED,
-    3: Status.CANCELLED,
-    4: Status.NOTTRADED,
-    5: Status.CANCELLED,
-    6: Status.REJECTED,
-    7: Status.SUBMITTING
-}
-
-PRODUCT_XTP2VT: Dict[int, Product] = {
-    0: Product.EQUITY,
-    1: Product.INDEX,
-    2: Product.FUND,
-    3: Product.BOND,
-    4: Product.OPTION,
-    5: Product.EQUITY,
-    6: Product.OPTION
+STATUS_XTP2VT = {
+    XTP_ORDER_STATUS_TYPE.XTP_ORDER_STATUS_INIT: Status.SUBMITTING,
+    XTP_ORDER_STATUS_TYPE.XTP_ORDER_STATUS_ALLTRADED: Status.ALLTRADED,
+    XTP_ORDER_STATUS_TYPE.XTP_ORDER_STATUS_PARTTRADEDQUEUEING: Status.PARTTRADED,
+    XTP_ORDER_STATUS_TYPE.XTP_ORDER_STATUS_PARTTRADEDNOTQUEUEING: Status.CANCELLED,
+    XTP_ORDER_STATUS_TYPE.XTP_ORDER_STATUS_NOTRADEQUEUEING: Status.NOTTRADED,
+    XTP_ORDER_STATUS_TYPE.XTP_ORDER_STATUS_CANCELED: Status.CANCELLED,
+    XTP_ORDER_STATUS_TYPE.XTP_ORDER_STATUS_REJECTED: Status.REJECTED,
 }
 
-OFFSET_VT2XTP: Dict[Offset, int] = {
-    Offset.NONE: 0,
-    Offset.OPEN: 1,
-    Offset.CLOSE: 2,
-    Offset.CLOSETODAY: 4,
-    Offset.CLOSEYESTERDAY: 5
-}
-OFFSET_XTP2VT: Dict[int, Offset] = {v: k for k, v in OFFSET_VT2XTP.items()}
 
-BUSINESS_VT2XTP: Dict[Any, int] = {
-    "CASH": 0,
-    Offset.NONE: 0,
-    "MARGIN": 4,
-    Offset.OPEN: 4,
-    Offset.CLOSE: 4,
-    "OPTION": 10,
-}
-
-symbol_name_map: Dict[str, str] = {}
-symbol_exchange_map: Dict[str, Exchange] = {}
+symbol_name_map = {}
+symbol_exchange_map = {}
 
 
 class XtpGateway(BaseGateway):
 
-    default_setting: Dict[str, Any] = {
+    default_setting = {
         "账号": "",
         "密码": "",
         "客户号": 1,
@@ -130,57 +127,62 @@ class XtpGateway(BaseGateway):
         "授权码": ""
     }
 
-    exchanges: List[Exchange] = list(EXCHANGE_VT2XTP.keys())
+    exchanges = list(EXCHANGE_VT2XTP.keys())
 
     def __init__(self, event_engine: EventEngine):
         """"""
         super().__init__(event_engine, "XTP")
 
-        self.md_api = XtpMdApi(self)
-        self.td_api = XtpTdApi(self)
+        self.quote_api = XtpQuoteApi(self)
+        self.trader_api = XtpTraderApi(self)
 
-    def connect(self, setting: dict) -> None:
+        set_async_callback_exception_handler(
+            self._async_callback_exception_handler)
+
+    def connect(self, setting: dict):
         """"""
-        userid = setting["账号"]
-        password = setting["密码"]
-        client_id = int(setting["客户号"])
-        quote_ip = setting["行情地址"]
-        quote_port = int(setting["行情端口"])
-        trader_ip = setting["交易地址"]
-        trader_port = int(setting["交易端口"])
+        userid = setting['账号']
+        password = setting['密码']
+        client_id = int(setting['客户号'])
+        quote_ip = setting['行情地址']
+        quote_port = int(setting['行情端口'])
+        trader_ip = setting['交易地址']
+        trader_port = int(setting['交易端口'])
         quote_protocol = setting["行情协议"]
         software_key = setting["授权码"]
 
-        self.md_api.connect(userid, password, client_id, quote_ip, quote_port, quote_protocol)
-        self.td_api.connect(userid, password, client_id, trader_ip, trader_port, software_key)
+        self.quote_api.connect(userid, password, client_id,
+                               quote_ip, quote_port, quote_protocol)
+        self.trader_api.connect(userid, password, client_id,
+                                trader_ip, trader_port, software_key)
         self.init_query()
 
-    def close(self) -> None:
+    def close(self):
         """"""
-        self.md_api.close()
-        self.td_api.close()
+        self.quote_api.close()
+        self.trader_api.close()
 
-    def subscribe(self, req: SubscribeRequest) -> None:
+    def subscribe(self, req: SubscribeRequest):
         """"""
-        self.md_api.subscrbie(req)
+        self.quote_api.subscrbie(req)
 
     def send_order(self, req: OrderRequest) -> str:
         """"""
-        return self.td_api.send_order(req)
+        return self.trader_api.send_order(req)
 
-    def cancel_order(self, req: CancelRequest) -> None:
+    def cancel_order(self, req: CancelRequest):
         """"""
-        self.td_api.cancel_order(req)
+        self.trader_api.cancel_order(req)
 
-    def query_account(self) -> None:
+    def query_account(self):
         """"""
-        self.td_api.query_account()
+        self.trader_api.query_account()
 
-    def query_position(self) -> None:
+    def query_position(self):
         """"""
-        self.td_api.query_position()
+        self.trader_api.query_position()
 
-    def process_timer_event(self, event) -> None:
+    def process_timer_event(self, event):
         """"""
         self.count += 1
         if self.count < 2:
@@ -191,158 +193,253 @@ class XtpGateway(BaseGateway):
         func()
         self.query_functions.append(func)
 
-    def init_query(self) -> None:
+    def init_query(self):
         """"""
         self.count = 0
         self.query_functions = [self.query_account, self.query_position]
         self.event_engine.register(EVENT_TIMER, self.process_timer_event)
 
-    def write_error(self, msg: str, error: dict) -> None:
-        """"""
-        error_id = error["error_id"]
-        error_msg = error["error_msg"]
-        msg = f"{msg}，代码：{error_id}，信息：{error_msg}"
-        self.write_log(msg)
+    def _async_callback_exception_handler(self, e: AsyncDispatchException):
+        error_str = f"发生内部错误：\n" f"位置：{e.instance}.{e.function_name}" f"详细信息：{e.what}"
+        print(error_str)
 
 
-class XtpMdApi(MdApi):
+class XtpQuoteApi(API.QuoteSpi):
 
     def __init__(self, gateway: BaseGateway):
         """"""
         super().__init__()
 
-        self.gateway: BaseGateway = gateway
-        self.gateway_name: str = gateway.gateway_name
+        self.gateway = gateway
+        self.gateway_name = gateway.gateway_name
 
-        self.userid: str = ""
-        self.password: str = ""
+        self.userid = ""
+        self.password = ""
         self.client_id: int = 0
-        self.server_ip: str = ""
+        self.server_ip = ""
         self.server_port: int = 0
-        self.protocol: int = 0
-        self.session_id: int = 0
+        self.server_protocol = ""
 
-        self.connect_status: bool = False
-        self.login_status: bool = False
+        self.api = None
 
-    def onDisconnected(self, reason: int) -> None:
+    def connect(
+        self,
+        userid: str,
+        password: str,
+        client_id: int,
+        server_ip: str,
+        server_port: int,
+        quote_protocol: str
+    ):
         """"""
-        self.connect_status = False
-        self.login_status = False
-        self.gateway.write_log(f"行情服务器连接断开, 原因{reason}")
-
-        n = self.login()
-
-        if n:
-            self.session_id = n
-            self.connect_status = True
-            self.login_status = True
-
-            self.gateway.write_log(f"交易服务器登录成功，会话编号：{self.session_id}")
-        else:
-            self.gateway.write_log("行情服务器登录失败")
-
-    def onError(self, error: dict) -> None:
-        """"""
-        self.gateway.write_error("行情接口报错", error)
-
-    def onSubMarketData(self, data: dict, error: dict, last: bool) -> None:
-        """"""
-        if not error or not error["error_id"]:
+        if self.api:
             return
 
-        self.gateway.write_error("行情订阅失败", error)
+        self.userid = userid
+        self.password = password
+        self.client_id = client_id
+        self.server_ip = server_ip
+        self.server_port = server_port
 
-    def onUnSubMarketData(self, data: dict, error: dict, last: bool) -> None:
+        if quote_protocol == "TCP":
+            self.quote_protocol = XTP_PROTOCOL_TYPE.XTP_PROTOCOL_TCP
+        else:
+            self.quote_protocol = XTP_PROTOCOL_TYPE.XTP_PROTOCOL_UDP
+
+        # Create API object
+        path = str(get_folder_path(self.gateway_name.lower()))
+
+        self.api = API.QuoteApi.CreateQuoteApi(
+            self.client_id,
+            path,
+            XTP_LOG_LEVEL.XTP_LOG_LEVEL_TRACE
+        )
+
+        self.api.RegisterSpi(self)
+        self.gateway.write_log("行情接口初始化成功")
+
+        # Login to server
+        Thread(target=self.login).start()
+
+    def login(self):
+        """"""
+        ret = self.api.Login(
+            self.server_ip,
+            self.server_port,
+            self.userid,
+            self.password,
+            self.quote_protocol
+        )
+
+        if not ret:
+            msg = "行情服务器登录成功"
+            self.query_contract()
+        else:
+            msg = f"行情服务器登录失败，原因：{ret}"
+        self.gateway.write_log(msg)
+
+    def close(self):
+        """"""
+        if self.api:
+            self.api.RegisterSpi(None)
+            self.api.Release()
+
+    def subscrbie(self, req: SubscribeRequest):
+        """"""
+        xtp_exchange = EXCHANGE_VT2XTP.get(req.exchange, "")
+        self.api.SubscribeMarketData([req.symbol], xtp_exchange)
+
+    def query_contract(self):
+        """"""
+        for exchange_id in EXCHANGE_XTP2VT.keys():
+            self.api.QueryAllTickers(exchange_id)
+
+    def check_error(self, func_name: str, error_info: XTPRspInfoStruct):
+        """"""
+        if error_info and error_info.error_id:
+            msg = f"{func_name}发生错误, 代码：{error_info.error_id}，信息：{error_info.error_msg}"
+            self.gateway.write_log(msg)
+            return True
+        else:
+            return False
+
+    def OnDisconnected(self, reason: int) -> Any:
+        """"""
+        self.gateway.write_log("行情服务器连接断开")
+
+        self.login()
+
+    def OnError(self, error_info: XTPRspInfoStruct) -> Any:
+        """"""
+        self.check_error("行情接口", error_info)
+
+    def OnSubMarketData(self, ticker: XTPSpecificTickerStruct, error_info: XTPRspInfoStruct,
+                        is_last: bool) -> Any:
+        """"""
+        self.check_error("订阅行情", error_info)
+
+    def OnUnSubMarketData(self, ticker: XTPSpecificTickerStruct, error_info: XTPRspInfoStruct,
+                          is_last: bool) -> Any:
         """"""
         pass
 
-    def onDepthMarketData(self, data: dict) -> None:
+    def OnDepthMarketData(self, market_data: XTPMarketDataStruct, bid1_qty: Sequence[int],
+                          bid1_count: int, max_bid1_count: int, ask1_qty: Sequence[int],
+                          ask1_count: int, max_ask1_count: int) -> Any:
         """"""
-        timestamp = str(data["data_time"])
+        timestamp = str(market_data.data_time)
         dt = datetime.strptime(timestamp, "%Y%m%d%H%M%S%f")
 
         tick = TickData(
-            symbol=data["ticker"],
-            exchange=EXCHANGE_XTP2VT[data["exchange_id"]],
+            symbol=market_data.ticker,
+            exchange=EXCHANGE_XTP2VT[market_data.exchange_id],
             datetime=dt,
-            volume=data["qty"],
-            last_price=data["last_price"],
-            limit_up=data["upper_limit_price"],
-            limit_down=data["lower_limit_price"],
-            open_price=data["open_price"],
-            high_price=data["high_price"],
-            low_price=data["low_price"],
-            pre_close=data["pre_close_price"],
+            volume=market_data.qty,
+            last_price=market_data.last_price,
+            limit_up=market_data.upper_limit_price,
+            limit_down=market_data.lower_limit_price,
+            open_price=market_data.open_price,
+            high_price=market_data.high_price,
+            low_price=market_data.low_price,
+            pre_close=market_data.pre_close_price,
+            bid_price_1=market_data.bid[0],
+            bid_price_2=market_data.bid[1],
+            bid_price_3=market_data.bid[2],
+            bid_price_4=market_data.bid[3],
+            bid_price_5=market_data.bid[4],
+            ask_price_1=market_data.ask[0],
+            ask_price_2=market_data.ask[1],
+            ask_price_3=market_data.ask[2],
+            ask_price_4=market_data.ask[3],
+            ask_price_5=market_data.ask[4],
+            bid_volume_1=market_data.bid_qty[0],
+            bid_volume_2=market_data.bid_qty[1],
+            bid_volume_3=market_data.bid_qty[2],
+            bid_volume_4=market_data.bid_qty[3],
+            bid_volume_5=market_data.bid_qty[4],
+            ask_volume_1=market_data.ask_qty[0],
+            ask_volume_2=market_data.ask_qty[1],
+            ask_volume_3=market_data.ask_qty[2],
+            ask_volume_4=market_data.ask_qty[3],
+            ask_volume_5=market_data.ask_qty[4],
             gateway_name=self.gateway_name
         )
-
-        tick.bid_price_1, tick.bid_price_2, tick.bid_price_3, tick.bid_price_4, tick.bid_price_5 = data["bid"][0:5]
-        tick.ask_price_1, tick.ask_price_2, tick.ask_price_3, tick.ask_price_4, tick.ask_price_5 = data["ask"][0:5]
-        tick.bid_volume_1, tick.bid_volume_2, tick.bid_volume_3, tick.bid_volume_4, tick.bid_volume_5 = data["bid_qty"][0:5]
-        tick.ask_volume_1, tick.ask_volume_2, tick.ask_volume_3, tick.ask_volume_4, tick.ask_volume_5 = data["ask_qty"][0:5]
-
         tick.name = symbol_name_map.get(tick.vt_symbol, tick.symbol)
+
         self.gateway.on_tick(tick)
 
-    def onSubOrderBook(self, data: dict, error: dict, last: bool) -> None:
+    def OnSubOrderBook(self, ticker: XTPSpecificTickerStruct, error_info: XTPRspInfoStruct,
+                       is_last: bool) -> Any:
         """"""
         pass
 
-    def onUnSubOrderBook(self, data: dict, error: dict, last: bool) -> None:
+    def OnUnSubOrderBook(self, ticker: XTPSpecificTickerStruct, error_info: XTPRspInfoStruct,
+                         is_last: bool) -> Any:
         """"""
         pass
 
-    def onOrderBook(self, data: dict) -> None:
+    def OnOrderBook(self, order_book: OrderBookStruct) -> Any:
         """"""
         pass
 
-    def onSubTickByTick(self, data: dict, error: dict, last: bool) -> None:
+    def OnSubTickByTick(self, ticker: XTPSpecificTickerStruct, error_info: XTPRspInfoStruct,
+                        is_last: bool) -> Any:
         """"""
         pass
 
-    def onUnSubTickByTick(self, data: dict, error: dict, last: bool) -> None:
+    def OnUnSubTickByTick(self, ticker: XTPSpecificTickerStruct, error_info: XTPRspInfoStruct,
+                          is_last: bool) -> Any:
         """"""
         pass
 
-    def onTickByTick(self, data: dict) -> None:
+    def OnTickByTick(self, tbt_data: XTPTickByTickStruct) -> Any:
         """"""
         pass
 
-    def onSubscribeAllMarketData(self, data: dict, error: dict) -> None:
+    def OnSubscribeAllMarketData(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                 error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onUnSubscribeAllMarketData(self, data: dict, error: dict) -> None:
+    def OnUnSubscribeAllMarketData(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                   error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onSubscribeAllOrderBook(self, data: dict, error: dict) -> None:
+    def OnSubscribeAllOrderBook(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onUnSubscribeAllOrderBook(self, data: dict, error: dict) -> None:
+    def OnUnSubscribeAllOrderBook(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                  error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onSubscribeAllTickByTick(self, data: dict, error: dict) -> None:
+    def OnSubscribeAllTickByTick(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                 error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onUnSubscribeAllTickByTick(self, data: dict, error: dict) -> None:
+    def OnUnSubscribeAllTickByTick(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                   error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onQueryAllTickers(self, data: dict, error: dict, last: bool) -> None:
+    def OnQueryAllTickers(self, ticker_info: XTPQuoteStaticInfo, error_info: XTPRspInfoStruct,
+                          is_last: bool) -> Any:
         """"""
+        if self.check_error("查询合约", error_info):
+            return
+
         contract = ContractData(
-            symbol=data["ticker"],
-            exchange=EXCHANGE_XTP2VT[data["exchange_id"]],
-            name=data["ticker_name"],
-            product=PRODUCT_XTP2VT[data["ticker_type"]],
+            symbol=ticker_info.ticker,
+            exchange=EXCHANGE_XTP2VT[ticker_info.exchange_id],
+            name=ticker_info.ticker_name,
+            product=PRODUCT_XTP2VT[ticker_info.ticker_type],
             size=1,
-            pricetick=data["price_tick"],
-            min_volume=data["buy_qty_unit"],
+            pricetick=ticker_info.price_tick,
+            min_volume=ticker_info.buy_qty_unit,
             gateway_name=self.gateway_name
         )
         self.gateway.on_contract(contract)
@@ -352,317 +449,71 @@ class XtpMdApi(MdApi):
         if contract.product != Product.INDEX:
             symbol_exchange_map[contract.symbol] = contract.exchange
 
-        if last:
+        if is_last:
             self.gateway.write_log(f"{contract.exchange.value}合约信息查询成功")
 
-    def onQueryTickersPriceInfo(self, data: dict, error: dict, last: bool) -> None:
+    def OnQueryTickersPriceInfo(self, ticker_info: XTPTickerPriceInfo, error_info: XTPRspInfoStruct,
+                                is_last: bool) -> Any:
         """"""
         pass
 
-    def onSubscribeAllOptionMarketData(self, data: dict, error: dict) -> None:
+    def OnSubscribeAllOptionMarketData(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                       error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onUnSubscribeAllOptionMarketData(self, data: dict, error: dict) -> None:
+    def OnUnSubscribeAllOptionMarketData(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                         error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onSubscribeAllOptionOrderBook(self, data: dict, error: dict) -> None:
+    def OnSubscribeAllOptionOrderBook(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                      error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onUnSubscribeAllOptionOrderBook(self, data: dict, error: dict) -> None:
+    def OnUnSubscribeAllOptionOrderBook(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                        error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onSubscribeAllOptionTickByTick(self, data: dict, error: dict) -> None:
+    def OnSubscribeAllOptionTickByTick(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                       error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def onUnSubscribeAllOptionTickByTick(self, data: dict, error: dict) -> None:
+    def OnUnSubscribeAllOptionTickByTick(self, exchange_id: XTP_EXCHANGE_TYPE,
+                                         error_info: XTPRspInfoStruct) -> Any:
         """"""
         pass
 
-    def connect(
-        self,
-        userid: str,
-        password: str,
-        client_id: int,
-        server_ip: str,
-        server_port: int,
-        quote_protocol: int
-    ) -> None:
-        """"""
-        self.userid = userid
-        self.password = password
-        self.client_id = client_id
-        self.server_ip = server_ip
-        self.server_port = server_port
-        self.protocol = PROTOCOL_VT2XTP[quote_protocol]
 
-        # Create API object
-        if not self.connect_status:
-            path = str(get_folder_path(self.gateway_name.lower()))
-            self.createQuoteApi(self.client_id, path)
-
-            self.login_server()
-
-    def login_server(self) -> None:
-        """"""
-        n = self.login(
-            self.server_ip,
-            self.server_port,
-            self.userid,
-            self.password,
-            self.protocol
-        )
-
-        if not n:
-            self.connect_status = True
-            self.login_status = True
-            msg = "行情服务器登录成功"
-            self.query_contract()
-            self.init()
-        else:
-            msg = f"行情服务器登录失败，原因：{n}"
-
-        self.gateway.write_log(msg)
-
-    def close(self) -> None:
-        """"""
-        if self.connect_status:
-            self.exit()
-
-    def subscrbie(self, req: SubscribeRequest) -> None:
-        """"""
-        if self.login_status:
-            xtp_exchange = EXCHANGE_VT2XTP.get(req.exchange, "")
-            self.subscribeMarketData(req.symbol, 1, xtp_exchange)
-
-    def query_contract(self) -> None:
-        """"""
-        for exchange_id in EXCHANGE_XTP2VT.keys():
-            self.queryAllTickers(exchange_id)
-
-
-class XtpTdApi(TdApi):
+class XtpTraderApi(API.TraderSpi):
 
     def __init__(self, gateway: BaseGateway):
         """"""
         super().__init__()
 
-        self.gateway: BaseGateway = gateway
-        self.gateway_name: str = gateway.gateway_name
+        self.gateway = gateway
+        self.gateway_name = gateway.gateway_name
 
-        self.userid: str = ""
-        self.password: str = ""
-        self.client_id: str = ""
-        self.server_ip: str = ""
-        self.server_port: str = ""
-        self.software_key: str = ""
+        self.userid = ""
+        self.password = ""
+        self.client_id = ""
+        self.server_ip = ""
+        self.server_port = ""
+        self.software_key = ""
 
-        self.session_id: int = 0
-        self.reqid: int = 0
-        self.protocol: int = 0
+        self.api = None
+        self.session_id = 0
+        self.reqid = 0
 
         # Whether current account supports margin or option
         self.margin_trading = False
         self.option_trading = False
 
-        self.connect_status: bool = False
-        self.login_status: bool = False
-
-        self.short_positions: Dict[str, PositionData] = {}
-
-    def onDisconnected(self, session: int, reason: int) -> None:
-        """"""
-        self.connect_status = False
-        self.login_status = False
-        self.gateway.write_log(f"交易服务器连接断开, 原因{reason}")
-
-        self.login_server()
-
-    def onError(self, error: dict) -> None:
-        """"""
-        self.gateway.write_error("交易接口报错", error)
-
-    def onOrderEvent(self, data: dict, error: dict, session: int) -> None:
-        """"""
-        if error["error_id"]:
-            self.gateway.write_error("交易委托失败", error)
-
-        symbol = data["ticker"]
-        if len(symbol) == 8:
-            direction = DIRECTION_OPTION_XTP2VT[data["side"]]
-            offset = OFFSET_XTP2VT[data["position_effect"]]
-        else:
-            direction, offset = DIRECTION_STOCK_XTP2VT[data["side"]]
-
-        order = OrderData(
-            symbol=symbol,
-            exchange=MARKET_XTP2VT[data["market"]],
-            orderid=str(data["order_xtp_id"]),
-            type=ORDERTYPE_XTP2VT[data["price_type"]],
-            direction=direction,
-            offset=offset,
-            price=data["price"],
-            volume=data["quantity"],
-            traded=data["qty_traded"],
-            status=STATUS_XTP2VT[data["order_status"]],
-            time=data["insert_time"],
-            gateway_name=self.gateway_name
-        )
-
-        self.gateway.on_order(order)
-
-    def onTradeEvent(self, data: dict, session: int) -> None:
-        """"""
-        symbol = data["ticker"]
-        if len(symbol) == 8:
-            direction = DIRECTION_OPTION_XTP2VT[data["side"]]
-            offset = OFFSET_XTP2VT[data["position_effect"]]
-        else:
-            direction, offset = DIRECTION_STOCK_XTP2VT[data["side"]]
-
-        trade = TradeData(
-            symbol=symbol,
-            exchange=MARKET_XTP2VT[data["market"]],
-            orderid=str(data["order_xtp_id"]),
-            tradeid=str(data["exec_id"]),
-            direction=direction,
-            offset=offset,
-            price=data["price"],
-            volume=data["quantity"],
-            time=data["trade_time"],
-            gateway_name=self.gateway_name
-        )
-
-        self.gateway.on_trade(trade)
-
-    def onCancelOrderError(self, data: dict, error: dict, session: int) -> None:
-        """"""
-        if not error or not error["error_id"]:
-            return
-
-        self.gateway.write_error("撤单失败", error)
-
-    def onQueryOrder(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryTrade(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryPosition(
-        self,
-        data: dict,
-        error: dict,
-        request: int,
-        last: bool,
-        session: int
-    ) -> None:
-        """"""
-        if data["market"] == 0:
-            return
-
-        position = PositionData(
-            symbol=data["ticker"],
-            exchange=MARKET_XTP2VT[data["market"]],
-            direction=POSITION_DIRECTION_XTP2VT[data["position_direction"]],
-            volume=data["total_qty"],
-            frozen=data["locked_position"],
-            price=data["avg_price"],
-            pnl=data["unrealized_pnl"],
-            yd_volume=data["yesterday_position"],
-            gateway_name=self.gateway_name
-        )
-        self.gateway.on_position(position)
-
-    def onQueryAsset(
-        self,
-        data: dict,
-        error: dict,
-        request: int,
-        last: bool,
-        session: int
-    ) -> None:
-        """"""
-        account = AccountData(
-            accountid=self.userid,
-            balance=data["buying_power"],
-            frozen=data["withholding_amount"],
-            gateway_name=self.gateway_name
-        )
-        self.gateway.on_account(account)
-
-        if data["account_type"] == 1:
-            self.margin_trading = True
-        elif data["account_type"] == 2:
-            self.option_trading = True
-
-    def onQueryStructuredFund(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryFundTransfer(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onFundTransfer(self, data: dict, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryETF(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryETFBasket(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryIPOInfoList(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryIPOQuotaInfo(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryOptionAuctionInfo(self, data: dict, error: dict, last: bool, session: int) -> None:
-        """"""
-        pass
-
-    def onQueryCreditDebtInfo(
-        self,
-        data: dict,
-        error: dict,
-        request: int,
-        last: bool,
-        session: int
-    ) -> None:
-        """"""
-        if data["debt_type"] == 1:
-            symbol = data["ticker"]
-            exchange = MARKET_XTP2VT[data["market"]]
-
-            position = self.short_positions.get(symbol, None)
-            if not position:
-                position = PositionData(
-                    symbol=symbol,
-                    exchange=exchange,
-                    direction=Direction.SHORT,
-                    gateway_name=self.gateway_name
-                )
-                self.short_positions[symbol] = position
-
-            position.volume += data["remain_qty"]
-
-        if last:
-            for position in self.short_positions.values():
-                self.gateway.on_position(position)
-
-            self.short_positions.clear()
+        #
+        self.short_positions = {}
 
     def connect(
         self,
@@ -672,8 +523,10 @@ class XtpTdApi(TdApi):
         server_ip: str,
         server_port: int,
         software_key: str
-    ) -> None:
+    ):
         """"""
+        if self.api:
+            return
 
         self.userid = userid
         self.password = password
@@ -681,44 +534,48 @@ class XtpTdApi(TdApi):
         self.server_ip = server_ip
         self.server_port = server_port
         self.software_key = software_key
-        self.protocol = PROTOCOL_VT2XTP["TCP"]
 
         # Create API object
-        if not self.connect_status:
-            path = str(get_folder_path(self.gateway_name.lower()))
-            self.createTraderApi(self.client_id, path)
+        path = str(get_folder_path(self.gateway_name.lower()))
 
-            self.setSoftwareKey(self.software_key)
-            self.subscribePublicTopic(0)
-            self.login_server()
+        self.api = API.TraderApi.CreateTraderApi(
+            self.client_id,
+            path,
+            XTP_LOG_LEVEL.XTP_LOG_LEVEL_TRACE
+        )
 
-    def login_server(self) -> None:
+        self.api.RegisterSpi(self)
+        self.api.SetSoftwareKey(self.software_key)
+        self.api.SubscribePublicTopic(XTP_TE_RESUME_TYPE.XTP_TERT_RESTART)
+
+        self.gateway.write_log("交易接口初始化成功")
+
+        # Login to server
+        Thread(target=self.login).start()
+
+    def login(self):
         """"""
-        n = self.login(
+        self.session_id = self.api.Login(
             self.server_ip,
             self.server_port,
             self.userid,
             self.password,
-            self.protocol
+            XTP_PROTOCOL_TYPE.XTP_PROTOCOL_TCP
         )
 
-        if n:
-            self.session_id = n
-            self.connect_status = True
-            self.login_status = True
-            msg = f"交易服务器登录成功, 会话编号：{self.session_id}"
-            self.init()
-
+        if self.session_id:
+            msg = "交易服务器登录成功"
         else:
-            error = self.getApiLastError()
-            msg = f"交易服务器登录失败，原因：{error['error_msg']}"
+            error = self.api.GetApiLastError()
+            msg = f"交易服务器登录失败，原因：{error.error_msg}"
 
         self.gateway.write_log(msg)
 
-    def close(self) -> None:
+    def close(self):
         """"""
-        if self.connect_status:
-            self.exit()
+        if self.api:
+            self.api.RegisterSpi(None)
+            self.api.Release()
 
     def send_order(self, req: OrderRequest) -> str:
         """"""
@@ -730,58 +587,231 @@ class XtpTdApi(TdApi):
             self.gateway.write_log(f"委托失败，不支持的委托类型{req.type.value}")
             return ""
 
-        # check for option type
-        if len(req.symbol) == 8:
-            xtp_req = {
-                "ticker": req.symbol,
-                "market": MARKET_VT2XTP[req.exchange],
-                "price": req.price,
-                "quantity": int(req.volume),
-                "side": DIRECTION_OPTION_VT2XTP.get(req.direction, ""),
-                "position_effect": OFFSET_VT2XTP[req.offset],
-                "price_type": ORDERTYPE_VT2XTP[req.type],
-                "business_type": BUSINESS_VT2XTP["OPTION"]
-            }
+        xtp_req = XTPOrderInsertInfo()
+        xtp_req.ticker = req.symbol
+        xtp_req.market = MARKET_VT2XTP[req.exchange]
+        xtp_req.price = req.price
+        xtp_req.quantity = int(req.volume)
+        xtp_req.side = DIRECTION_VT2XTP.get((req.direction, req.offset), "")
+        xtp_req.price_type = ORDERTYPE_VT2XTP[req.type]
 
-        # stock type
+        if req.offset == Offset.NONE:
+            xtp_req.business_type = XTP_BUSINESS_TYPE.XTP_BUSINESS_TYPE_CASH
         else:
-            xtp_req = {
-                "ticker": req.symbol,
-                "market": MARKET_VT2XTP[req.exchange],
-                "price": req.price,
-                "quantity": int(req.volume),
-                "side": DIRECTION_STOCK_VT2XTP.get((req.direction, req.offset), ""),
-                "price_type": ORDERTYPE_VT2XTP[req.type],
-                "business_type": BUSINESS_VT2XTP[req.offset]
-            }
+            xtp_req.business_type = XTP_BUSINESS_TYPE.XTP_BUSINESS_TYPE_MARGIN
 
-        orderid = self.insertOrder(xtp_req, self.session_id)
+        orderid = self.api.InsertOrder(xtp_req, self.session_id)
 
         order = req.create_order_data(str(orderid), self.gateway_name)
         self.gateway.on_order(order)
 
         return order.vt_orderid
 
-    def cancel_order(self, req: CancelRequest) -> None:
+    def cancel_order(self, req: CancelRequest):
         """"""
-        self.cancelOrder(int(req.orderid), self.session_id)
+        self.api.CancelOrder(int(req.orderid), self.session_id)
 
-    def query_account(self) -> None:
+    def query_account(self):
         """"""
-        if not self.connect_status:
+        if not self.api:
             return
 
         self.reqid += 1
-        self.queryAsset(self.session_id, self.reqid)
+        self.api.QueryAsset(self.session_id, self.reqid)
 
-    def query_position(self) -> None:
+    def query_position(self):
         """"""
-        if not self.connect_status:
+        if not self.api:
             return
 
         self.reqid += 1
-        self.queryPosition("", self.session_id, self.reqid)
+        self.api.QueryPosition("", self.session_id, self.reqid)
 
         if self.margin_trading:
             self.reqid += 1
-            self.queryCreditDebtInfo(self.session_id, self.reqid)
+            self.api.QueryCreditDebtInfo(self.session_id, self.reqid)
+
+    def check_error(self, func_name: str, error_info: XTPRspInfoStruct):
+        """"""
+        if error_info and error_info.error_id:
+            msg = f"{func_name}发生错误, 代码：{error_info.error_id}，信息：{error_info.error_msg}"
+            self.gateway.write_log(msg)
+            return True
+        else:
+            return False
+
+    def OnDisconnected(self, session_id: int, reason: int) -> Any:
+        """"""
+        self.gateway.write_log("交易服务器连接断开")
+
+        self.login()
+
+    def OnError(self, error_info: XTPRspInfoStruct) -> Any:
+        """"""
+        self.check_error("交易接口", error_info)
+
+    def OnOrderEvent(self, order_info: XTPOrderInfo, error_info: XTPRspInfoStruct,
+                     session_id: int) -> Any:
+        """"""
+        self.check_error("委托下单", error_info)
+
+        direction, offset = DIRECTION_XTP2VT[order_info.side]
+
+        order = OrderData(
+            symbol=order_info.ticker,
+            exchange=MARKET_XTP2VT[order_info.market],
+            orderid=str(order_info.order_xtp_id),
+            type=ORDERTYPE_XTP2VT[order_info.price_type],
+            direction=direction,
+            offset=offset,
+            price=order_info.price,
+            volume=order_info.quantity,
+            traded=order_info.qty_traded,
+            status=STATUS_XTP2VT[order_info.order_status],
+            time=order_info.insert_time,
+            gateway_name=self.gateway_name
+        )
+
+        self.gateway.on_order(order)
+
+    def OnTradeEvent(self, trade_info: XTPTradeReport, session_id: int) -> Any:
+        """"""
+        direction, offset = DIRECTION_XTP2VT[trade_info.side]
+
+        trade = TradeData(
+            symbol=trade_info.ticker,
+            exchange=MARKET_XTP2VT[trade_info.market],
+            orderid=str(trade_info.order_xtp_id),
+            tradeid=str(trade_info.exec_id),
+            direction=direction,
+            offset=offset,
+            price=trade_info.price,
+            volume=trade_info.quantity,
+            time=trade_info.trade_time,
+            gateway_name=self.gateway_name
+        )
+
+        self.gateway.on_trade(trade)
+
+    def OnCancelOrderError(self, cancel_info: XTPOrderCancelInfo, error_info: XTPRspInfoStruct,
+                           session_id: int) -> Any:
+        """"""
+        self.check_error("委托撤单", error_info)
+
+    def OnQueryOrder(self, order_info: XTPOrderInfo, error_info: XTPRspInfoStruct,
+                     is_last: bool, session_id: int) -> Any:
+        """"""
+        if self.check_error("查询委托", error_info):
+            return
+
+        self.updateOrder(order_info)
+
+        if is_last:
+            self.gateway.write_log("查询委托信息成功")
+
+    def OnQueryTrade(self, trade_info: XTPTradeReport, error_info: XTPRspInfoStruct,
+                     is_last: bool, session_id: int) -> Any:
+        """"""
+        if self.check_error("查询成交", error_info):
+            return
+
+        self.updateTrade(trade_info)
+
+        if is_last:
+            self.gateway.write_log("查询成交信息成功")
+
+    def OnQueryPosition(self, xtp_position: XTPQueryStkPositionRsp, error_info: XTPRspInfoStruct,
+                        request_id: int, is_last: bool, session_id: int) -> Any:
+        """"""
+        position = PositionData(
+            symbol=xtp_position.ticker,
+            exchange=MARKET_XTP2VT[xtp_position.market],
+            direction=Direction.LONG,
+            volume=xtp_position.total_qty,
+            frozen=xtp_position.locked_position,
+            price=xtp_position.avg_price,
+            pnl=xtp_position.unrealized_pnl,
+            yd_volume=xtp_position.yesterday_position,
+            gateway_name=self.gateway_name
+        )
+        self.gateway.on_position(position)
+
+    def OnQueryAsset(self, asset: XTPQueryAssetRsp, error_info: XTPRspInfoStruct,
+                     request_id: int, is_last: bool, session_id: int) -> Any:
+        """"""
+        account = AccountData(
+            accountid=self.userid,
+            balance=asset.buying_power,
+            frozen=asset.withholding_amount,
+            gateway_name=self.gateway_name
+        )
+        self.gateway.on_account(account)
+
+        if asset.account_type == XTP_ACCOUNT_TYPE.XTP_ACCOUNT_CREDIT:
+            self.margin_trading = True
+        elif asset.account_type == XTP_ACCOUNT_TYPE.XTP_ACCOUNT_DERIVE:
+            self.option_trading = True
+
+    def OnQueryStructuredFund(self, fund_info: XTPStructuredFundInfo, error_info: XTPRspInfoStruct,
+                              is_last: bool, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnQueryFundTransfer(self, fund_transfer_info: XTPFundTransferNotice, error_info: XTPRspInfoStruct,
+                            is_last: bool, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnFundTransfer(self, fund_transfer_info: XTPFundTransferNotice, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnQueryETF(self, etf_info: XTPQueryETFBaseRsp, error_info: XTPRspInfoStruct,
+                   is_last: bool, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnQueryETFBasket(self, etf_component_info: XTPQueryETFComponentRsp, error_info: XTPRspInfoStruct,
+                         is_last: bool, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnQueryIPOInfoList(self, ipo_info: XTPQueryIPOTickerRsp, error_info: XTPRspInfoStruct,
+                           is_last: bool, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnQueryIPOQuotaInfo(self, quota_info: XTPQueryIPOQuotaRsp, error_info: XTPRspInfoStruct,
+                            is_last: bool, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnQueryOptionAuctionInfo(self, option_info: XTPQueryOptionAuctionInfoRsp, error_info: XTPRspInfoStruct,
+                                 is_last: bool, session_id: int) -> Any:
+        """"""
+        pass
+
+    def OnQueryCreditDebtInfo(self, debt_info: XTPCrdDebtInfo, error_info: XTPRspInfoStruct,
+                              request_id: int, is_last: bool, session_id: int) -> Any:
+        """"""
+        if debt_info.debt_type == 1:
+            symbol = debt_info.ticker
+            exchange = MARKET_XTP2VT[debt_info.market]
+
+            position = self.short_positions.get(symbol, None)
+            if not position:
+                position = PositionData(
+                    symbol=symbol,
+                    exchange=exchange,
+                    direction=Direction.SHORT,
+                    gateway_name=self.gateway_name
+                )
+                self.short_positions[symbol] = position
+
+            position.volume += debt_info.remain_qty
+
+        if is_last:
+            for position in self.short_positions.values():
+                self.gateway.on_position(position)
+
+            self.short_positions.clear()

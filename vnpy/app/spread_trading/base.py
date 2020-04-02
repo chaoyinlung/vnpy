@@ -386,7 +386,6 @@ def load_bar_data(
 
     for dt in bars.keys():
         spread_price = 0
-        spread_value = 0
         spread_available = True
 
         for leg in spread.legs.values():
@@ -395,7 +394,6 @@ def load_bar_data(
             if leg_bar:
                 price_multiplier = spread.price_multipliers[leg.vt_symbol]
                 spread_price += price_multiplier * leg_bar.close_price
-                spread_value += abs(price_multiplier) * leg_bar.close_price
             else:
                 spread_available = False
 
@@ -414,7 +412,6 @@ def load_bar_data(
                 close_price=spread_price,
                 gateway_name="SPREAD",
             )
-            spread_bar.value = spread_value
             spread_bars.append(spread_bar)
 
     return spread_bars

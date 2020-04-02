@@ -372,7 +372,7 @@ class OnetokenDataWebsocketApi(WebsocketClient):
 
         self.gateway = gateway
         self.gateway_name = gateway.gateway_name
-        self.subscribed: Dict[str, SubscribeRequest] = {}
+
         self.ticks = {}
         self.callbacks = {
             "auth": self.on_login,
@@ -391,7 +391,6 @@ class OnetokenDataWebsocketApi(WebsocketClient):
         """
         Subscribe to tick data upate.
         """
-        self.subscribed[req.vt_symbol] = req
         tick = TickData(
             symbol=req.symbol,
             exchange=req.exchange,
@@ -450,9 +449,7 @@ class OnetokenDataWebsocketApi(WebsocketClient):
     def on_login(self, data: dict):
         """"""
         self.gateway.write_log("行情Websocket API登录成功")
-        for req in list(self.subscribed.values()):
-            self.subscribe(req)
-            
+
     def on_tick(self, data: dict):
         """"""
         contract_symbol = data["contract"]

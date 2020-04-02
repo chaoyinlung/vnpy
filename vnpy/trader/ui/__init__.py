@@ -3,7 +3,6 @@ import platform
 import sys
 import traceback
 import webbrowser
-import types
 
 import qdarkstyle
 from PyQt5 import QtGui, QtWidgets, QtCore
@@ -13,7 +12,7 @@ from ..setting import SETTINGS
 from ..utility import get_icon_path
 
 
-def excepthook(exctype: type, value: Exception, tb: types.TracebackType) -> None:
+def excepthook(exctype, value, tb):
     """
     Raise exception under debug mode, otherwise
     show exception detail with QMessageBox.
@@ -25,7 +24,7 @@ def excepthook(exctype: type, value: Exception, tb: types.TracebackType) -> None
     dialog.exec_()
 
 
-def create_qapp(app_name: str = "VN Trader") -> QtWidgets.QApplication:
+def create_qapp(app_name: str = "VN Trader"):
     """
     Create Qt Application.
     """
@@ -57,11 +56,11 @@ class ExceptionDialog(QtWidgets.QDialog):
         """"""
         super().__init__()
 
-        self.msg: str = msg
+        self.msg = msg
 
         self.init_ui()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.setWindowTitle("触发异常")
         self.setFixedSize(600, 600)
@@ -90,11 +89,11 @@ class ExceptionDialog(QtWidgets.QDialog):
 
         self.setLayout(vbox)
 
-    def _copy_text(self) -> None:
+    def _copy_text(self):
         """"""
         self.msg_edit.selectAll()
         self.msg_edit.copy()
 
-    def _open_community(self) -> None:
+    def _open_community(self):
         """"""
         webbrowser.open("https://www.vnpy.com/forum/forum/2-ti-wen-qiu-zhu")

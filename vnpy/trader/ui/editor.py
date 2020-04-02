@@ -3,15 +3,12 @@ from pathlib import Path
 
 from PyQt5 import QtWidgets, Qsci, QtGui
 
-from vnpy.event import EventEngine
-from ..engine import MainEngine
-
 
 class CodeEditor(QtWidgets.QMainWindow):
     """"""
-    NEW_FILE_NAME: str = "Untitled"
+    NEW_FILE_NAME = "Untitled"
 
-    _instance: "CodeEditor" = None
+    _instance = None
 
     def __new__(cls, *args, **kwargs):
         """"""
@@ -19,23 +16,23 @@ class CodeEditor(QtWidgets.QMainWindow):
             cls._instance = QtWidgets.QMainWindow.__new__(cls, *args, **kwargs)
         return cls._instance
 
-    def __init__(self, main_engine: MainEngine = None, event_engine: EventEngine = None):
+    def __init__(self, main_engine=None, event_engine=None):
         """"""
         super().__init__()
 
-        self.new_file_count: int = 0
+        self.new_file_count = 0
         self.editor_path_map: Dict[Qsci.QsciScintilla, str] = {}
 
         self.init_ui()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.setWindowTitle("策略编辑器")
 
         self.init_menu()
         self.init_central()
 
-    def init_central(self) -> None:
+    def init_central(self):
         """"""
         self.tab = QtWidgets.QTabWidget()
         self.tab.currentChanged.connect(self.update_path_label)
@@ -51,7 +48,7 @@ class CodeEditor(QtWidgets.QMainWindow):
 
         self.setCentralWidget(widget)
 
-    def init_menu(self) -> None:
+    def init_menu(self):
         """"""
         bar = self.menuBar()
 
@@ -87,7 +84,7 @@ class CodeEditor(QtWidgets.QMainWindow):
         action_name: str,
         func: Callable,
         shortcut: str = "",
-    ) -> None:
+    ):
         """"""
         action = QtWidgets.QAction(action_name, self)
         action.triggered.connect(func)
@@ -97,7 +94,7 @@ class CodeEditor(QtWidgets.QMainWindow):
             sequence = QtGui.QKeySequence(shortcut)
             action.setShortcut(sequence)
 
-    def new_editor(self) -> Qsci.QsciScintilla:
+    def new_editor(self):
         """"""
         # Create editor object
         editor = Qsci.QsciScintilla()
@@ -151,7 +148,7 @@ class CodeEditor(QtWidgets.QMainWindow):
 
         return editor
 
-    def open_editor(self, file_path: str = "") -> None:
+    def open_editor(self, file_path: str = ""):
         """"""
         # Show editor tab if file already opened
         if file_path:
@@ -182,7 +179,7 @@ class CodeEditor(QtWidgets.QMainWindow):
 
         self.path_label.setText(file_path)
 
-    def close_editor(self) -> None:
+    def close_editor(self):
         """"""
         i = self.tab.currentIndex()
 
@@ -198,7 +195,7 @@ class CodeEditor(QtWidgets.QMainWindow):
 
             self.tab.removeTab(i)
 
-    def open_file(self) -> None:
+    def open_file(self):
         """"""
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "打开文件", "", "Python(*.py)")
@@ -206,11 +203,11 @@ class CodeEditor(QtWidgets.QMainWindow):
         if file_path:
             self.open_editor(file_path)
 
-    def new_file(self) -> None:
+    def new_file(self):
         """"""
         self.open_editor("")
 
-    def save_file(self) -> None:
+    def save_file(self):
         """"""
         editor = self.get_active_editor()
         file_path = self.editor_path_map[editor]
@@ -221,7 +218,7 @@ class CodeEditor(QtWidgets.QMainWindow):
 
         self.save_editor_text(editor, file_path)
 
-    def save_file_as(self) -> None:
+    def save_file_as(self):
         """"""
         editor = self.get_active_editor()
 
@@ -230,7 +227,7 @@ class CodeEditor(QtWidgets.QMainWindow):
 
         self.save_editor_text(editor, file_path)
 
-    def save_editor_text(self, editor: Qsci.QsciScintilla, file_path: str) -> None:
+    def save_editor_text(self, editor: Qsci.QsciScintilla, file_path: str):
         """"""
         if file_path:
             self.editor_path_map[editor] = file_path
@@ -244,27 +241,27 @@ class CodeEditor(QtWidgets.QMainWindow):
 
         self.update_path_label()
 
-    def copy(self) -> None:
+    def copy(self):
         """"""
         self.get_active_editor().copy()
 
-    def paste(self) -> None:
+    def paste(self):
         """"""
         self.get_active_editor().paste()
 
-    def undo(self) -> None:
+    def undo(self):
         """"""
         self.get_active_editor().undo()
 
-    def redo(self) -> None:
+    def redo(self):
         """"""
         self.get_active_editor().redo()
 
-    def cut(self) -> None:
+    def cut(self):
         """"""
         self.get_active_editor().cut()
 
-    def find(self) -> None:
+    def find(self):
         """"""
         dialog = FindDialog(
             self.get_active_editor(),
@@ -272,7 +269,7 @@ class CodeEditor(QtWidgets.QMainWindow):
         )
         dialog.exec_()
 
-    def replace(self) -> None:
+    def replace(self):
         """"""
         dialog = FindDialog(
             self.get_active_editor(),
@@ -280,11 +277,11 @@ class CodeEditor(QtWidgets.QMainWindow):
         )
         dialog.exec_()
 
-    def get_active_editor(self) -> Qsci.QsciScintilla:
+    def get_active_editor(self):
         """"""
         return self.tab.currentWidget()
 
-    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+    def closeEvent(self, event):
         """"""
         for editor, path in self.editor_path_map.items():
             i = QtWidgets.QMessageBox.question(
@@ -307,14 +304,14 @@ class CodeEditor(QtWidgets.QMainWindow):
 
         event.accept()
 
-    def show(self) -> None:
+    def show(self):
         """"""
         if not self.tab.count():
             self.open_editor()
 
         self.showMaximized()
 
-    def update_path_label(self) -> None:
+    def update_path_label(self):
         """"""
         editor = self.get_active_editor()
         path = self.editor_path_map[editor]
@@ -338,7 +335,7 @@ class FindDialog(QtWidgets.QDialog):
 
         self.init_ui()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         find_label = QtWidgets.QLabel("查找")
         replace_label = QtWidgets.QLabel("替换")
@@ -395,7 +392,7 @@ class FindDialog(QtWidgets.QDialog):
             self.replace_line.setVisible(False)
             self.replace_button.setVisible(False)
 
-    def find_text(self) -> None:
+    def find_text(self):
         """"""
         if not self.new_task:
             result = self.editor.findNext()
@@ -435,14 +432,14 @@ class FindDialog(QtWidgets.QDialog):
         else:
             self.new_task = True
 
-    def replace_text(self) -> None:
+    def replace_text(self):
         """"""
         new_text = self.replace_line.text()
 
         self.editor.replace(new_text)
         self.editor.findNext()
 
-    def reset_task(self) -> None:
+    def reset_task(self):
         """"""
         self.new_task = True
         self.replace_button.setEnabled(False)

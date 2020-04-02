@@ -3,16 +3,12 @@ Basic widgets for VN Trader.
 """
 
 import csv
-import platform
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
 from copy import copy
 
-from PyQt5 import QtCore, QtGui, QtWidgets, Qt
-import rqdatac
-import numpy as np
+from PyQt5 import QtCore, QtGui, QtWidgets
 
-import vnpy
 from vnpy.event import Event, EventEngine
 from ..constant import Direction, Exchange, Offset, OrderType
 from ..engine import MainEngine
@@ -47,14 +43,14 @@ class BaseCell(QtWidgets.QTableWidgetItem):
         self.setTextAlignment(QtCore.Qt.AlignCenter)
         self.set_content(content, data)
 
-    def set_content(self, content: Any, data: Any) -> None:
+    def set_content(self, content: Any, data: Any):
         """
         Set text content.
         """
         self.setText(str(content))
         self._data = data
 
-    def get_data(self) -> Any:
+    def get_data(self):
         """
         Get data object.
         """
@@ -70,7 +66,7 @@ class EnumCell(BaseCell):
         """"""
         super(EnumCell, self).__init__(content, data)
 
-    def set_content(self, content: Any, data: Any) -> None:
+    def set_content(self, content: Any, data: Any):
         """
         Set text using enum.constant.value.
         """
@@ -87,7 +83,7 @@ class DirectionCell(EnumCell):
         """"""
         super(DirectionCell, self).__init__(content, data)
 
-    def set_content(self, content: Any, data: Any) -> None:
+    def set_content(self, content: Any, data: Any):
         """
         Cell color is set according to direction.
         """
@@ -132,7 +128,7 @@ class PnlCell(BaseCell):
         """"""
         super(PnlCell, self).__init__(content, data)
 
-    def set_content(self, content: Any, data: Any) -> None:
+    def set_content(self, content: Any, data: Any):
         """
         Cell color is set based on whether pnl is
         positive or negative.
@@ -154,7 +150,7 @@ class TimeCell(BaseCell):
         """"""
         super(TimeCell, self).__init__(content, data)
 
-    def set_content(self, content: Any, data: Any) -> None:
+    def set_content(self, content: Any, data: Any):
         """
         Time format is 12:12:12.5
         """
@@ -187,30 +183,30 @@ class BaseMonitor(QtWidgets.QTableWidget):
     Monitor data update in VN Trader.
     """
 
-    event_type: str = ""
-    data_key: str = ""
-    sorting: bool = False
-    headers: Dict[str, dict] = {}
+    event_type = ""
+    data_key = ""
+    sorting = False
+    headers = {}
 
-    signal: QtCore.pyqtSignal = QtCore.pyqtSignal(Event)
+    signal = QtCore.pyqtSignal(Event)
 
     def __init__(self, main_engine: MainEngine, event_engine: EventEngine):
         """"""
         super(BaseMonitor, self).__init__()
 
-        self.main_engine: MainEngine = main_engine
-        self.event_engine: EventEngine = event_engine
-        self.cells: Dict[str, dict] = {}
+        self.main_engine = main_engine
+        self.event_engine = event_engine
+        self.cells = {}
 
         self.init_ui()
         self.register_event()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.init_table()
         self.init_menu()
 
-    def init_table(self) -> None:
+    def init_table(self):
         """
         Initialize table.
         """
@@ -224,7 +220,7 @@ class BaseMonitor(QtWidgets.QTableWidget):
         self.setAlternatingRowColors(True)
         self.setSortingEnabled(self.sorting)
 
-    def init_menu(self) -> None:
+    def init_menu(self):
         """
         Create right click menu.
         """
@@ -238,7 +234,7 @@ class BaseMonitor(QtWidgets.QTableWidget):
         save_action.triggered.connect(self.save_csv)
         self.menu.addAction(save_action)
 
-    def register_event(self) -> None:
+    def register_event(self):
         """
         Register event handler into event engine.
         """
@@ -246,7 +242,7 @@ class BaseMonitor(QtWidgets.QTableWidget):
             self.signal.connect(self.process_event)
             self.event_engine.register(self.event_type, self.signal.emit)
 
-    def process_event(self, event: Event) -> None:
+    def process_event(self, event):
         """
         Process new data from event and update into table.
         """
@@ -271,7 +267,7 @@ class BaseMonitor(QtWidgets.QTableWidget):
         if self.sorting:
             self.setSortingEnabled(True)
 
-    def insert_new_row(self, data: Any):
+    def insert_new_row(self, data):
         """
         Insert a new row at the top of table.
         """
@@ -292,7 +288,7 @@ class BaseMonitor(QtWidgets.QTableWidget):
             key = data.__getattribute__(self.data_key)
             self.cells[key] = row_cells
 
-    def update_old_row(self, data: Any) -> None:
+    def update_old_row(self, data):
         """
         Update an old row in table.
         """
@@ -303,13 +299,13 @@ class BaseMonitor(QtWidgets.QTableWidget):
             content = data.__getattribute__(header)
             cell.set_content(content, data)
 
-    def resize_columns(self) -> None:
+    def resize_columns(self):
         """
         Resize all columns according to contents.
         """
         self.horizontalHeader().resizeSections(QtWidgets.QHeaderView.ResizeToContents)
 
-    def save_csv(self) -> None:
+    def save_csv(self):
         """
         Save table data into a csv file
         """
@@ -334,7 +330,7 @@ class BaseMonitor(QtWidgets.QTableWidget):
                         row_data.append("")
                 writer.writerow(row_data)
 
-    def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
+    def contextMenuEvent(self, event):
         """
         Show menu with right click.
         """
@@ -393,7 +389,7 @@ class TradeMonitor(BaseMonitor):
     data_key = ""
     sorting = True
 
-    headers: Dict[str, dict] = {
+    headers = {
         "tradeid": {"display": "成交号 ", "cell": BaseCell, "update": False},
         "orderid": {"display": "委托号", "cell": BaseCell, "update": False},
         "symbol": {"display": "代码", "cell": BaseCell, "update": False},
@@ -416,7 +412,7 @@ class OrderMonitor(BaseMonitor):
     data_key = "vt_orderid"
     sorting = True
 
-    headers: Dict[str, dict] = {
+    headers = {
         "orderid": {"display": "委托号", "cell": BaseCell, "update": False},
         "symbol": {"display": "代码", "cell": BaseCell, "update": False},
         "exchange": {"display": "交易所", "cell": EnumCell, "update": False},
@@ -440,7 +436,7 @@ class OrderMonitor(BaseMonitor):
         self.setToolTip("双击单元格撤单")
         self.itemDoubleClicked.connect(self.cancel_order)
 
-    def cancel_order(self, cell: BaseCell) -> None:
+    def cancel_order(self, cell):
         """
         Cancel order if cell double clicked.
         """
@@ -496,17 +492,17 @@ class ConnectDialog(QtWidgets.QDialog):
 
     def __init__(self, main_engine: MainEngine, gateway_name: str):
         """"""
-        super().__init__()
+        super(ConnectDialog, self).__init__()
 
-        self.main_engine: MainEngine = main_engine
-        self.gateway_name: str = gateway_name
-        self.filename: str = f"connect_{gateway_name.lower()}.json"
+        self.main_engine = main_engine
+        self.gateway_name = gateway_name
+        self.filename = f"connect_{gateway_name.lower()}.json"
 
-        self.widgets: Dict[str, QtWidgets.QWidget] = {}
+        self.widgets = {}
 
         self.init_ui()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.setWindowTitle(f"连接{self.gateway_name}")
 
@@ -538,9 +534,6 @@ class ConnectDialog(QtWidgets.QDialog):
                     saved_value = loaded_setting[field_name]
                     widget.setText(str(saved_value))
 
-                if "密码" in field_name:
-                    widget.setEchoMode(QtWidgets.QLineEdit.Password)
-
             form.addRow(f"{field_name} <{field_type.__name__}>", widget)
             self.widgets[field_name] = (widget, field_type)
 
@@ -550,7 +543,7 @@ class ConnectDialog(QtWidgets.QDialog):
 
         self.setLayout(form)
 
-    def connect(self) -> None:
+    def connect(self):
         """
         Get setting value from line edits and connect the gateway.
         """
@@ -579,17 +572,17 @@ class TradingWidget(QtWidgets.QWidget):
 
     def __init__(self, main_engine: MainEngine, event_engine: EventEngine):
         """"""
-        super().__init__()
+        super(TradingWidget, self).__init__()
 
-        self.main_engine: MainEngine = main_engine
-        self.event_engine: EventEngine = event_engine
+        self.main_engine = main_engine
+        self.event_engine = event_engine
 
-        self.vt_symbol: str = ""
+        self.vt_symbol = ""
 
         self.init_ui()
         self.register_event()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.setFixedWidth(300)
 
@@ -706,11 +699,7 @@ class TradingWidget(QtWidgets.QWidget):
         vbox.addLayout(form2)
         self.setLayout(vbox)
 
-    def create_label(
-        self,
-        color: str = "",
-        alignment: int = QtCore.Qt.AlignLeft
-    ) -> QtWidgets.QLabel:
+    def create_label(self, color: str = "", alignment: int = QtCore.Qt.AlignLeft):
         """
         Create label with certain font color.
         """
@@ -720,12 +709,12 @@ class TradingWidget(QtWidgets.QWidget):
         label.setAlignment(alignment)
         return label
 
-    def register_event(self) -> None:
+    def register_event(self):
         """"""
         self.signal_tick.connect(self.process_tick_event)
         self.event_engine.register(EVENT_TICK, self.signal_tick.emit)
 
-    def process_tick_event(self, event: Event) -> None:
+    def process_tick_event(self, event: Event):
         """"""
         tick = event.data
         if tick.vt_symbol != self.vt_symbol:
@@ -762,7 +751,7 @@ class TradingWidget(QtWidgets.QWidget):
             self.ap5_label.setText(str(tick.ask_price_5))
             self.av5_label.setText(str(tick.ask_volume_5))
 
-    def set_vt_symbol(self) -> None:
+    def set_vt_symbol(self):
         """
         Set the tick depth data to monitor by vt_symbol.
         """
@@ -800,7 +789,7 @@ class TradingWidget(QtWidgets.QWidget):
 
         self.main_engine.subscribe(req, gateway_name)
 
-    def clear_label_text(self) -> None:
+    def clear_label_text(self):
         """
         Clear text on all labels.
         """
@@ -831,7 +820,7 @@ class TradingWidget(QtWidgets.QWidget):
         self.ap4_label.setText("")
         self.ap5_label.setText("")
 
-    def send_order(self) -> None:
+    def send_order(self):
         """
         Send new order manually.
         """
@@ -866,7 +855,7 @@ class TradingWidget(QtWidgets.QWidget):
 
         self.main_engine.send_order(req, gateway_name)
 
-    def cancel_all(self) -> None:
+    def cancel_all(self):
         """
         Cancel all active orders.
         """
@@ -881,7 +870,7 @@ class ActiveOrderMonitor(OrderMonitor):
     Monitor which shows active order only.
     """
 
-    def process_event(self, event) -> None:
+    def process_event(self, event):
         """
         Hides the row if order is not active.
         """
@@ -902,7 +891,7 @@ class ContractManager(QtWidgets.QWidget):
     Query contract data available to trade in system.
     """
 
-    headers: Dict[str, str] = {
+    headers = {
         "vt_symbol": "本地代码",
         "symbol": "代码",
         "exchange": "交易所",
@@ -914,15 +903,15 @@ class ContractManager(QtWidgets.QWidget):
         "gateway_name": "交易接口",
     }
 
-    def __init__(self, main_engine: MainEngine, event_engine: EventEngine):
-        super().__init__()
+    def __init__(self, main_engine, event_engine):
+        super(ContractManager, self).__init__()
 
-        self.main_engine: MainEngine = main_engine
-        self.event_engine: EventEngine = event_engine
+        self.main_engine = main_engine
+        self.event_engine = event_engine
 
         self.init_ui()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.setWindowTitle("合约查询")
         self.resize(1000, 600)
@@ -955,7 +944,7 @@ class ContractManager(QtWidgets.QWidget):
 
         self.setLayout(vbox)
 
-    def show_contracts(self) -> None:
+    def show_contracts(self):
         """
         Show contracts by symbol
         """
@@ -991,31 +980,24 @@ class AboutDialog(QtWidgets.QDialog):
 
     def __init__(self, main_engine: MainEngine, event_engine: EventEngine):
         """"""
-        super().__init__()
+        super(AboutDialog, self).__init__()
 
-        self.main_engine: MainEngine = main_engine
-        self.event_engine: EventEngine = event_engine
+        self.main_engine = main_engine
+        self.event_engine = event_engine
 
         self.init_ui()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.setWindowTitle(f"关于VN Trader")
 
-        text = f"""
-            By Traders, For Traders.
-
-
+        text = """
+            Developed by Traders, for Traders.
             License：MIT
+
             Website：www.vnpy.com
             Github：www.github.com/vnpy/vnpy
 
-
-            vn.py - {vnpy.__version__}
-            Python - {platform.python_version()}
-            PyQt5 - {Qt.PYQT_VERSION_STR}
-            Numpy - {np.__version__}
-            RQData - {rqdatac.__version__}
             """
 
         label = QtWidgets.QLabel()
@@ -1036,11 +1018,11 @@ class GlobalDialog(QtWidgets.QDialog):
         """"""
         super().__init__()
 
-        self.widgets: Dict[str, Any] = {}
+        self.widgets = {}
 
         self.init_ui()
 
-    def init_ui(self) -> None:
+    def init_ui(self):
         """"""
         self.setWindowTitle("全局配置")
         self.setMinimumWidth(800)
@@ -1064,7 +1046,7 @@ class GlobalDialog(QtWidgets.QDialog):
 
         self.setLayout(form)
 
-    def update_setting(self) -> None:
+    def update_setting(self):
         """
         Get setting value from line edits and update global setting file.
         """

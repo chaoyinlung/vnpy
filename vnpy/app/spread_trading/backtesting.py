@@ -461,11 +461,13 @@ class BacktestingEngine:
             long_cross = (
                 algo.direction == Direction.LONG
                 and algo.price >= long_cross_price
+                and long_cross_price > 0
             )
 
             short_cross = (
                 algo.direction == Direction.SHORT
                 and algo.price <= short_cross_price
+                and short_cross_price > 0
             )
 
             if not long_cross and not short_cross:
@@ -501,11 +503,6 @@ class BacktestingEngine:
                 gateway_name=self.gateway_name,
             )
             trade.datetime = self.datetime
-
-            if self.mode == BacktestingMode.BAR:
-                trade.value = self.bar.value
-            else:
-                trade.value = trade_price
 
             self.spread.net_pos += pos_change
             self.strategy.on_spread_pos()
@@ -675,7 +672,7 @@ class DailyResult:
 
             self.end_pos += pos_change
 
-            turnover = trade.volume * size * trade.value
+            turnover = trade.volume * size * trade.price
             self.trading_pnl += pos_change * \
                 (self.close_price - trade.price) * size
             self.slippage += trade.volume * size * slippage

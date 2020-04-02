@@ -3,11 +3,10 @@ Global setting of VN Trader.
 """
 
 from logging import CRITICAL
-from typing import Dict, Any
 
 from .utility import load_json
 
-SETTINGS: Dict[str, Any] = {
+SETTINGS = {
     "font.family": "Arial",
     "font.size": 12,
 
@@ -36,10 +35,10 @@ SETTINGS: Dict[str, Any] = {
 }
 
 # Load global setting from json file.
-SETTING_FILENAME: str = "vt_setting.json"
+SETTING_FILENAME = "vt_setting.json"
 SETTINGS.update(load_json(SETTING_FILENAME))
 
 
-def get_settings(prefix: str = "") -> Dict[str, Any]:
+def get_settings(prefix: str = ""):
     prefix_length = len(prefix)
     return {k[prefix_length:]: v for k, v in SETTINGS.items() if k.startswith(prefix)}
