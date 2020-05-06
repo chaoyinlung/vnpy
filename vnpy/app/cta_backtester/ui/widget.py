@@ -48,6 +48,7 @@ class BacktesterManager(QtWidgets.QWidget):
         self.register_event()
         self.backtester_engine.init_engine()
         self.init_strategy_settings()
+        self.load_backtesting_setting()
 
     def init_strategy_settings(self):
         """"""
@@ -221,7 +222,8 @@ class BacktesterManager(QtWidgets.QWidget):
         # Code Editor
         self.editor = CodeEditor(self.main_engine, self.event_engine)
 
-        # Load setting
+    def load_backtesting_setting(self):
+        """"""
         setting = load_json(self.setting_filename)
         if not setting:
             return
@@ -625,7 +627,16 @@ class BacktestingSettingEditor(QtWidgets.QDialog):
         button.clicked.connect(self.accept)
         form.addRow(button)
 
-        self.setLayout(form)
+        widget = QtWidgets.QWidget()
+        widget.setLayout(form)
+
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+
+        vbox = QtWidgets.QVBoxLayout()
+        vbox.addWidget(scroll)
+        self.setLayout(vbox)
 
     def get_setting(self):
         """"""
@@ -855,7 +866,16 @@ class OptimizationSettingEditor(QtWidgets.QDialog):
         ga_button.clicked.connect(self.generate_ga_setting)
         grid.addWidget(ga_button, row, 0, 1, 4)
 
-        self.setLayout(grid)
+        widget = QtWidgets.QWidget()
+        widget.setLayout(grid)
+
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+
+        vbox = QtWidgets.QVBoxLayout()
+        vbox.addWidget(scroll)
+        self.setLayout(vbox)
 
     def generate_ga_setting(self):
         """"""
